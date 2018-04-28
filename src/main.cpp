@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <STM32ADC.h>
 #include <stdarg.h>
 #include <libmaple/iwdg.h>
 #include <libmaple/gpio.h>
@@ -55,7 +56,6 @@ SdFat sd(1);
 
 // Track incoming command bytes from the LCD
 int inbound_count;
-
 bool lastUsbStatus = false;
 
 void init_pins() {
@@ -79,8 +79,8 @@ void init_pins() {
   pinMode(E0_DIR_PIN, OUTPUT);
   pinMode(E0_ENABLE_PIN, OUTPUT);
 
-  pinMode(TEMP_0_PIN, INPUT);
-  pinMode(TEMP_BED_PIN, INPUT);
+  pinMode(TEMP_0_PIN, INPUT_ANALOG);
+  pinMode(TEMP_BED_PIN, INPUT_ANALOG);
 
   pinMode(HEATER_0_PIN, OUTPUT);
   pinMode(HEATER_BED_PIN, OUTPUT);
@@ -253,7 +253,8 @@ void wait_for_endstop(int endstop) {
     }
 
     Log("\r\n");
-    LogLn("Finished. Original State: %i, New State %i", endstopState, newEndstopState);
+    Log("Finished. Original State: %i, New State %i", endstopState, newEndstopState);
+    LogLn("\r\n");
 }
 
 /*
@@ -265,7 +266,13 @@ void set_pin(const char *message, int pin, int state) {
 }
 
 void turn_on_e0_heater() {
-  set_pin("Enabling E0 Heater - DO NOT LEAVE ON", HEATER_0_PIN, HIGH);
+  set_pin("Turning on fan.", FAN_PIN, HIGH);
+  set_pin("Enabling E0 Heater and fan for 15 seconds.", HEATER_0_PIN, HIGH);
+  for (int i = 0; i < 15; i++) {
+    watchdog_reset();
+    delay(1000);
+  }
+  set_pin("Disabling E0 Heater, leaving fan on", HEATER_0_PIN, LOW);
 }
 
 void turn_off_e0_heater() {
@@ -273,7 +280,12 @@ void turn_off_e0_heater() {
 }
 
 void turn_on_bed_heater() {
-  set_pin("Enabling bed heater - DO NOT LEAVE ON", HEATER_BED_PIN, HIGH);
+  set_pin("Enabling bed heater for 30 seconds", HEATER_BED_PIN, HIGH);
+  for (int i = 0; i < 30; i++) {
+    watchdog_reset();
+    delay(1000);
+  }
+  set_pin("Disabling bed heater.", HEATER_BED_PIN, LOW);
 }
 
 void turn_off_bed_heater() {
@@ -297,9 +309,9 @@ void turn_off_controller_fan() {
 }
 
 void read_temp_pin(int pin) {
-  Log("Reading temp - reported values are raw analog:");
-  int value = analogRead(pin);
-  LogLn("Value is '%i'", value);
+  Log("Reading temp direct - reported values are raw analog:");
+  Log("Value is '%i'", analogRead(pin));
+  LogLn("");
 }
 
 void test_one_stepper(int enable_pin, int step_pin, int direction_pin)
